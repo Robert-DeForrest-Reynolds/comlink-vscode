@@ -9,13 +9,15 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "workspaceContains:com-link"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "com-link.helloWorld",
-        "title": "Hello World"
+        "command": "com-link.init",
+        "title": "Initialize com-link file."
       }
     ]
   },
