@@ -1,6 +1,6 @@
 {
-  "name": "com-link",
-  "displayName": "com-link",
+  "name": "comlink",
+  "displayName": "comlink",
   "description": "Debloat your code from comments with external comment linking",
   "version": "0.0.1",
   "engines": {
@@ -16,8 +16,8 @@
   "contributes": {
     "commands": [
       {
-        "command": "com-link.init",
-        "title": "Initialize com-link file."
+        "command": "comlink.init",
+        "title": "Initialize comlink file."
       }
     ]
   },

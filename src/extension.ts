@@ -1,7 +1,5 @@
 import * as vscode from 'vscode';
 import { spawn } from "child_process";
-import * as path from "path";
-import { types } from 'util';
 
 let is_initalized = false;
 const output = vscode.window.createOutputChannel('comlink');
@@ -9,24 +7,50 @@ let comlinkpy_path: string | null = null;
 let workspace_uri: vscode.Uri | null = null;
 let com_link_dir_path: vscode.Uri | null = null;
 
+let stack = "";
+
+let cache:Record<string, string> = {
+	'12348':'i\'m some comment'
+};
+
+let decl_started = false;
+let creating = false;
+
+const comment_map: Record<string, string> = {
+    javascript: '//',
+    typescript: '//',
+    python: '#',
+    cpp: '//',
+    c: '//',
+    java: '//',
+    ruby: '#',
+    go: '//',
+    lua: '--',
+    html: '<!--',
+    css: '/*',
+    php: '//',
+};
+
+
+
 function log(msg:string, pop:boolean=false){
-	console.log(msg);
+	output.appendLine(msg);
 	if (pop){
 		vscode.window.showInformationMessage(msg);
 	}
 }
 
 function error(msg:string, pop:boolean=false){
-	console.error(msg);
+	output.appendLine(msg);
 	if (pop){
 		vscode.window.showErrorMessage(msg);
 	}
 }
 
 
-async function init_com_link() {
+async function init_comlink() {
 	if (is_initalized) {
-		error("com-link is already initialized", true);
+		error("comlink is already initialized", true);
 		return;
 	} else {
 		is_initalized = true;
@@ -50,70 +74,128 @@ async function init_com_link() {
 		try {
 			const stat = await vscode.workspace.fs.stat(com_link_dir_path);
 			if (stat.type === vscode.FileType.Directory) {
-				error('com-link directory already exists.', true);
+				error('comlink directory already exists.', true);
 			} else {
-				error('A file exists with the same name as com-link directory.', true);
+				error('A file exists with the same name as comlink directory.', true);
 			}
 		} catch {
 			// Path doesn’t exist → create it
-			log('Creating com-link directory...', true);
+			log('Creating comlink directory...', true);
 			await vscode.workspace.fs.createDirectory(com_link_dir_path);
 			log(`Directory ready:\n${com_link_dir_path.fsPath}`, true);
 		}
 	} catch (err) {
-		error("Failed to create com-link directory for some reason.", true);
+		error("Failed to create comlink directory for some reason.", true);
 	}
 }
 
 
-function getCommentForSymbol(symbol: string): Promise<string | null> {
-	log("getting comment");
+function get_comment(symbol: string): Promise<string | null> {
     return new Promise((resolve, reject) => {
 		let child;
 		if (comlinkpy_path){
-			log("Getting comment...", true);
 			child = spawn("python", [comlinkpy_path, symbol]);
 
-			let collected = "";
+			let collected = '';
 
-			// listen to stdout
 			child.stdout.on("data", (data: Buffer) => {
 				const text = data.toString();
 				collected += text;
-				output.appendLine(text.trim()); // log to OutputChannel live
+				output.appendLine(text.trim());
 			});
 
-			// listen to stderr
 			child.stderr.on("data", (data: Buffer) => {
 				const text = data.toString();
 				output.appendLine("ERROR: " + text.trim());
 			});
 
-			// process exits
 			child.on("close", (code) => {
 				resolve(collected.trim() || null);
 			});
+
+			return new vscode.Hover(`**${collected}**`);
 		}
     });
 }
 
 
+function create() {
+	creating = false;
+	decl_started = false;
+	let id = "id:12348";
+	stack = '';
+	return id;
+}
+
+
+function check_character(event:vscode.TextDocumentChangeEvent){
+	const editor = vscode.window.activeTextEditor;
+	if (!editor) { return; }
+
+	let language_id = editor.document.languageId;
+
+	if (event.document !== editor.document) { return; }
+
+	for (const change of event.contentChanges) {
+		if (change.text.length > 0) {
+			const last_char = change.text[change.text.length - 1];
+            const line = editor.document.lineAt(change.range.start.line);
+			if (last_char === '*' && decl_started){
+				creating = true;
+			}
+			else if (last_char === '~' && !decl_started){
+				decl_started = true;
+			}
+			else if (last_char === '~' && creating){
+				let replacement = create();
+				if (language_id === 'html'){
+					editor.edit(editBuilder => {
+						editBuilder.replace(line.range, comment_map[language_id] + replacement + '-->');
+					});
+				}
+				else if (language_id === 'css'){
+					editor.edit(editBuilder => {
+						editBuilder.replace(line.range, comment_map[language_id] + replacement + '*/');
+					});
+				} else {
+					editor.edit(editBuilder => {
+						editBuilder.replace(line.range, comment_map[language_id] + replacement);
+					});
+				}
+			}
+			else if (last_char === '~' && !creating && decl_started){
+				decl_started = false;
+			}
+			else if (last_char !== '') {
+				stack += last_char;
+			}
+		}
+	}
+}
+
+
 export function activate(context: vscode.ExtensionContext) {
     comlinkpy_path = context.asAbsolutePath("comlink.py");
-	const init_command = vscode.commands.registerCommand('com-link.init', init_com_link);
+	const init_command = vscode.commands.registerCommand('comlink.init', init_comlink);
 	context.subscriptions.push(init_command);
+
+	vscode.workspace.onDidChangeTextDocument(event => check_character(event));
 
 
     const provider = vscode.languages.registerHoverProvider(
         { scheme: "file", language: "*" },
         {
             async provideHover(document, position) {
-                const range = document.getWordRangeAtPosition(position);
-                if (!range) { return; }
+                let text = document.lineAt(position.line).text;
+				let split = text.split(":");
+				let id = '';
+				if (split[0] === '#id'){
+					id = split[1];
+				}
 
-                const symbol = document.getText(range);
-
-                const doc = await getCommentForSymbol(symbol);
+				// actual statement:
+                // const doc = get_comment[id];
+                const doc = cache[id];
                 if (doc) {
 					log(doc);
                     return new vscode.Hover(doc);
@@ -126,8 +208,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(provider);
 
-	vscode.window.showInformationMessage("com-link active");
+	vscode.window.showInformationMessage("comlink active");
 }
 
-// This method is called when your extension is deactivated
 export function deactivate() {}

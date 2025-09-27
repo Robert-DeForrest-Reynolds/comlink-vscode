@@ -1,6 +1,6 @@
-# com-link README
+# comlink README
 
-This is the README for your extension "com-link". After writing up a brief description, we recommend including the following sections.
+This is the README for your extension "comlink". After writing up a brief description, we recommend including the following sections.
 
 ## Features
 
