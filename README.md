@@ -1,71 +1,37 @@
 # comlink README
+What is the point?
 
-This is the README for your extension "comlink". After writing up a brief description, we recommend including the following sections.
+Because documentation, and commenting is important. The thing is, it's incredibly subjective. All comments being there benefits everyone, but everyone personally only needs few comments here and there on things they specifically don't understand.
+As well, for incredibly large, and convoluted projects, it could prove very fruitful to have a heavily-detailed documentation embedded within the source files, but bloating the files themselves has always been a problem.
 
-## Features
+I made comlink to try to solve that problem, and well, just because I wanted to. I find this tool very useful myself, and that's enough to make it.
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
 
-For example if there is an image subfolder under your extension project workspace:
+### TO DO
+ - prune database upon deactivating editor
+ we can save 'line references' to the database as well, which will essentially be the comments line with id on it, so when pruning, we can find it
+ - "lost references", upon activating, comlink should verify all comments, and warn about lost references, which are comments that exist in the database, but have no id in the source files. since line references hold the file name, the line number, the content, and the id, it should be relatively easy to find the location of lost reference.
+    - maybe a repair mechanism where the user can decide to repair the line with y/n input
+ - ability to edit a comment through the editor. there should be two ways to edit a comment: editing the existing text, and replacing the existing text
+ - deletion of a comment through the editor
+    - when a user deletes a comment, that comment index is put into a list of empty indexes, which will be filled in priority
+    - when empty indexes over 20, a warning is presented that you should probably prune the database
+    - empty indexes are kept in memory, and on startup are determined when finding lost references in code
+ - find a way to "package" comlink comments so that they can be removed during building for production, and or put back
+ - "reordering" feature, where comlink goes through your project files alphabetically, and reorders all comment id's. optionally can provide a specified order of parsing
 
-\!\[feature X\]\(images/feature-x.png\)
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+## comlink <-> editor communication
 
-## Requirements
+The editor is responsible for telling comlink:
+ - handling the activation, and parsing requirements
+ - when a comment has been created, edited, or deleted
+ - what the source file of the comment is
+ - what line the comment is on
+ - what the comment is
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
-
-## Extension Settings
-
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
-
-## Known Issues
-
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+comlink is responsible for:
+ - tracking id's, and telling the editor what the id of the comment is
+ - creating, editing, and removing comments within the database
+ - pruning the database
+ - managing empty indexes and lost references

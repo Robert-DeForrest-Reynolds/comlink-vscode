@@ -27,10 +27,8 @@ let comlinkpy:ChildProcessWithoutNullStreams|null = null;
 let comlink_dir_path: string | null = null;
 let workspace_uri: vscode.Uri | null = null;
 let comlink_project_dir_path: vscode.Uri | null = null;
-let stack = "";
 let decl_started = false;
 let decl_position:vscode.Position|null;
-let decl_end:vscode.Position|null;
 let creating = false;
 
 
@@ -95,7 +93,7 @@ async function create(comment:string) {
 }
 
 
-async function check_character(event:vscode.TextDocumentChangeEvent){
+async function process_document_change_event(event:vscode.TextDocumentChangeEvent){
 	const editor = vscode.window.activeTextEditor;
 	if (!editor) { return; }
 
@@ -104,49 +102,55 @@ async function check_character(event:vscode.TextDocumentChangeEvent){
 	if (event.document !== editor.document) { return; }
 
 	for (const change of event.contentChanges) {
-		if (change.text === '' && change.rangeLength > 0) {
-			const deletedText = event.document.getText(change.range);
-			if (deletedText.includes('~')) {
-				creating = false;
-				decl_started = false;
-			}
-			else if (deletedText.includes('*')) {
-				creating = false;
-				decl_started = false;
-			}
+		check_character(event, change, editor, language_id);
+	}
+}
+
+
+async function check_character(event:vscode.TextDocumentChangeEvent,
+							   change:vscode.TextDocumentContentChangeEvent,
+							   editor:vscode.TextEditor, language_id:string){
+	if (change.text === '' && change.rangeLength > 0) {
+		const deletedText = event.document.getText(change.range);
+		if (deletedText.includes('~')) {
+			creating = false;
+			decl_started = false;
 		}
-		else if (change.text.length > 0) {
-			const last_char = change.text[change.text.length - 1];
-            const line = editor.document.lineAt(change.range.start.line);
-			if (last_char === '*' && decl_started){
-				creating = true;
-			}
-			else if (last_char === '~' && !decl_started){
-				decl_started = true;
-				decl_position = new vscode.Position(change.range.start.line, change.range.start.character);
-			}
-			else if (last_char === '~' && creating) {
-				const decl_end = change.range.end.translate(0, change.text.length);
-				const commentRange = new vscode.Range(decl_position!, decl_end);
-				const commentText = event.document.getText(commentRange).slice(2, -1);
-				
-				log(`creation text: ${commentText}`);
-				const replacement = await create(commentText);
+		else if (deletedText.includes('*')) {
+			creating = false;
+			decl_started = false;
+		}
+	}
+	else if (change.text.length > 0) {
+		const last_char = change.text[change.text.length - 1];
+		if (last_char === '*' && decl_started){
+			creating = true;
+		}
+		else if (last_char === '~' && !decl_started){
+			decl_started = true;
+			decl_position = new vscode.Position(change.range.start.line, change.range.start.character);
+		}
+		else if (last_char === '~' && creating) {
+			const decl_end = change.range.end.translate(0, change.text.length);
+			const commentRange = new vscode.Range(decl_position!, decl_end);
+			const commentText = event.document.getText(commentRange).slice(2, -1);
+			
+			log(`creation text: ${commentText}`);
+			const replacement = await create(commentText);
 
-				const fullReplacement =
-					language_id === 'html'
-						? "" + replacement + '-->'
-						: language_id === 'css'
-						? "" + replacement + '*/'
-						: "" + replacement;
+			const fullReplacement =
+				language_id === 'html'
+					? "" + replacement + '-->'
+					: language_id === 'css'
+					? "" + replacement + '*/'
+					: "" + replacement;
 
-				editor.edit(editBuilder => {
-					editBuilder.replace(commentRange, fullReplacement);
-				});
-			}
-			else if (last_char === '~' && !creating && decl_started){
-				decl_started = false;
-			}
+			editor.edit(editBuilder => {
+				editBuilder.replace(commentRange, fullReplacement);
+			});
+		}
+		else if (last_char === '~' && !creating && decl_started){
+			decl_started = false;
 		}
 	}
 }
@@ -200,7 +204,7 @@ export function activate(context: vscode.ExtensionContext) {
 		output.appendLine("DEBUG: " + data.toString().trim());
 	});
 
-	vscode.workspace.onDidChangeTextDocument(event => check_character(event));
+	vscode.workspace.onDidChangeTextDocument(event => process_document_change_event(event));
 
     const provider = vscode.languages.registerHoverProvider(
         { scheme: "file", language: "*" },
