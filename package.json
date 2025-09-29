@@ -17,12 +17,12 @@
     "commands": [
       {
         "command": "comlink.init",
-        "title": "Initialize comlink file."
+        "title": "Initialize comlink directory"
       }
     ]
   },
   "files": [
-    "./comlink.py"
+    "./comlink"
   ],
   "scripts": {
     "vscode:prepublish": "npm run package",

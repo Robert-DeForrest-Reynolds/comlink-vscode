@@ -23,7 +23,7 @@ const comment_map: Record<string, string> = {
 const repoUrl = "https://github.com/Robert-DeForrest-Reynolds/comlink.git";
 
 let is_initalized = false;
-let comlinkpy:ChildProcessWithoutNullStreams|null = null;
+let comlink:ChildProcessWithoutNullStreams|null = null;
 let comlink_dir_path: string | null = null;
 let workspace_uri: vscode.Uri | null = null;
 let comlink_project_dir_path: vscode.Uri | null = null;
@@ -66,6 +66,7 @@ async function init_project_comlink() {
 			}
 		} catch {
 			await vscode.workspace.fs.createDirectory(comlink_project_dir_path);
+			comlink!.stdin.write('*\n', 'utf-8');
 			log(`Directory ready:\n${comlink_project_dir_path.fsPath}`, true);
 		}
 	} catch (err) {
@@ -77,7 +78,7 @@ async function init_project_comlink() {
 function get_comment(id: string): Promise<string | null> {
     return new Promise(resolve => {
         pendingResolve = resolve;
-        comlinkpy!.stdin.write(`${id}\n`, "utf-8");
+        comlink!.stdin.write(`${id}\n`, "utf-8");
     });
 }
 
@@ -86,7 +87,7 @@ async function create(comment:string) {
 	creating = false;
 	decl_started = false;
 	decl_position = null;
-	comlinkpy!.stdin.write(`~${comment}\n`, "utf-8");
+	comlink!.stdin.write(`~${comment}\n`, "utf-8");
     return new Promise(resolve => {
         pendingResolve = resolve;
     });
@@ -134,23 +135,26 @@ async function check_character(event:vscode.TextDocumentChangeEvent,
 			const decl_end = change.range.end.translate(0, change.text.length);
 			const commentRange = new vscode.Range(decl_position!, decl_end);
 			const commentText = event.document.getText(commentRange).slice(2, -1);
-			
+
 			log(`creation text: ${commentText}`);
 			const replacement = await create(commentText);
 
 			const fullReplacement =
 				language_id === 'html'
-					? "" + replacement + '-->'
+					? `${replacement}-->`
 					: language_id === 'css'
-					? "" + replacement + '*/'
-					: "" + replacement;
+					? `${replacement}*/`
+					: `${replacement}`;
 
-			editor.edit(editBuilder => {
-				editBuilder.replace(commentRange, fullReplacement);
+			// Apply the edit, but re-calc the range right before applying
+			await editor.edit(editBuilder => {
+				const freshDeclEnd = new vscode.Position(
+					change.range.end.line,
+					change.range.end.character
+				);
+				const freshCommentRange = new vscode.Range(decl_position!, freshDeclEnd);
+				editBuilder.replace(freshCommentRange, fullReplacement);
 			});
-		}
-		else if (last_char === '~' && !creating && decl_started){
-			decl_started = false;
 		}
 	}
 }
@@ -185,22 +189,22 @@ export function activate(context: vscode.ExtensionContext) {
 
 	workspace_uri = workspace_folders[0].uri;
 	
-	comlink_dir_path = context.asAbsolutePath("comlink.py");
+	comlink_dir_path = vscode.Uri.joinPath(context.extensionUri, 'comlink', '__main__.py').fsPath;
 
 	const init_command = vscode.commands.registerCommand('comlink.init', init_project_comlink);
 	context.subscriptions.push(init_command);
 
 	log("Trying to start comlink process");
-	if (!comlink_dir_path){ log("comlinkpy cannot be found"); return;}
-	if (!workspace_uri){ log("comlinkpy cannot be found"); return;}
+	if (!comlink_dir_path){ log("comlink cannot be found"); return;}
+	if (!workspace_uri){ log("comlink cannot be found"); return;}
 
-	log("Starting comlinkpy process");
-	comlinkpy = spawn("python", ['-u', comlink_dir_path, workspace_uri.fsPath]);
-	if (!comlinkpy){ log("comlinkpy cannot be found"); return; }
+	log("Starting comlink process");
+	comlink = spawn("python", ['-B', comlink_dir_path, workspace_uri.fsPath]);
+	if (!comlink){ log("comlink cannot be found"); return; }
 
-	comlinkpy.stdout.on("data", parse_comlink_data);
+	comlink.stdout.on("data", parse_comlink_data);
 
-	comlinkpy.stderr.on("data", (data: Buffer) => {
+	comlink.stderr.on("data", (data: Buffer) => {
 		output.appendLine("DEBUG: " + data.toString().trim());
 	});
 
