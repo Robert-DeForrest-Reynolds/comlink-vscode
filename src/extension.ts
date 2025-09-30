@@ -55,6 +55,7 @@ async function init_project_comlink() {
 	} else { is_initalized = true; }
 
 	comlink_project_dir_path = vscode.Uri.joinPath(workspace_uri!, 'comlink');
+    comlink!.stdin.write(`>init\n`, "utf-8");
 
 	try {
 		try {
@@ -194,11 +195,10 @@ export function activate(context: vscode.ExtensionContext) {
 	const init_command = vscode.commands.registerCommand('comlink.init', init_project_comlink);
 	context.subscriptions.push(init_command);
 
-	log("Trying to start comlink process");
 	if (!comlink_dir_path){ log("comlink cannot be found"); return;}
 	if (!workspace_uri){ log("comlink cannot be found"); return;}
 
-	log("Starting comlink process");
+	log("Starting comlink process...");
 	comlink = spawn("python", ['-B', comlink_dir_path, workspace_uri.fsPath]);
 	if (!comlink){ log("comlink cannot be found"); return; }
 
