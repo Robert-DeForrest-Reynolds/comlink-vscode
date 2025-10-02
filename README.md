@@ -9,19 +9,6 @@ As well, for incredibly large, and convoluted projects, it could prove very frui
 
 ---
 
-## Table of Contents
-- [What is comlink?](#what-is-comlink)
-- [Features](#features)
-- [Installation](#installation)
-- [Usage](#usage)
-- [How It Works](#how-it-works)
-- [Planned Features](#planned-features)
-- [Requirements](#requirements)
-- [Contributing](#contributing)
-- [License](#license)
-
----
-
 ## What is comlink?
 
 comlink is a utility for communicating with text editors about a project's external comments.  
