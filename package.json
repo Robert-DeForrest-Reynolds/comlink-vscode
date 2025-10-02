@@ -10,7 +10,7 @@
     "Other"
   ],
   "activationEvents": [
-    "workspaceContains:com-link"
+    "workspaceContains:comlink"
   ],
   "main": "./dist/extension.js",
   "contributes": {

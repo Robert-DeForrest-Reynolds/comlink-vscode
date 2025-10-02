@@ -77,9 +77,9 @@ async function init_project_comlink() {
 
 
 function get_comment(id: string): Promise<string | null> {
+    comlink!.stdin.write(`@${id}\n`, "utf-8");
     return new Promise(resolve => {
         pendingResolve = resolve;
-        comlink!.stdin.write(`${id}\n`, "utf-8");
     });
 }
 
@@ -133,29 +133,24 @@ async function check_character(event:vscode.TextDocumentChangeEvent,
 			decl_position = new vscode.Position(change.range.start.line, change.range.start.character);
 		}
 		else if (last_char === '~' && creating) {
-			const decl_end = change.range.end.translate(0, change.text.length);
-			const commentRange = new vscode.Range(decl_position!, decl_end);
-			const commentText = event.document.getText(commentRange).slice(2, -1);
+			const commentRange = new vscode.Range(decl_position!, new vscode.Position(change.range.end.line, change.range.end.character+1));
 
+			const commentText = event.document.getText(commentRange).slice(2, -1);
+			
 			log(`creation text: ${commentText}`);
 			const replacement = await create(commentText);
 
 			const fullReplacement =
-				language_id === 'html'
-					? `${replacement}-->`
-					: language_id === 'css'
-					? `${replacement}*/`
-					: `${replacement}`;
+				language_id === 'html' ? "" + replacement + '-->'
+								: language_id === 'css' ? "" + replacement + '*/'
+								: "" + replacement;
 
-			// Apply the edit, but re-calc the range right before applying
-			await editor.edit(editBuilder => {
-				const freshDeclEnd = new vscode.Position(
-					change.range.end.line,
-					change.range.end.character
-				);
-				const freshCommentRange = new vscode.Range(decl_position!, freshDeclEnd);
-				editBuilder.replace(freshCommentRange, fullReplacement);
+			editor.edit(editBuilder => {
+				editBuilder.replace(commentRange, fullReplacement);
 			});
+		}
+		else if (last_char === '~' && !creating && decl_started){
+			decl_started = false;
 		}
 	}
 }
@@ -216,7 +211,7 @@ export function activate(context: vscode.ExtensionContext) {
             async provideHover(document, position) {
 				let language_id = document.languageId;
                 let text = document.lineAt(position.line).text;
-				let id = text.split(`${comment_map[language_id]}id:`)[1];
+				let id = text.split(`${comment_map[language_id]}ID:`)[1];
 				if (!id) { return; }
                 const comment = await get_comment(id);
                 if (comment) {
