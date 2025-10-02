@@ -61,31 +61,6 @@ This VSCode extension integrates comlink directly into the editor.
 
 ---
 
-## How It Works (if you care)
-
-The VSCode extension communicates with the comlink Python utility via standard input/output. 
-
-**Editor Responsibilities:**
-
-- Handle activation and file parsing.
-- Convert comments into IDs and replace text in the editor.
-- Notify comlink of comment creation, edits, and deletions.
-- Provide file and line context for each comment.
-
-**comlink Responsibilities:**
-
-- Track and generate unique comment IDs.
-- Maintain a centralized SQLite database for comments.
-- Manage empty ID slots and lost references.
-- Handle comment retrieval, creation, and deletion.
-
-**ID Encoding:**
-
-- IDs are lexicographically encoded using `Σ^1 ∪ Σ^2 ∪ Σ^3 ∪ …`.
-- 4-character IDs can support up to 1,728,604 unique comments.
-
----
-
 ## Planned Features
 
 - Higher ceiling for unique ID encoding.
