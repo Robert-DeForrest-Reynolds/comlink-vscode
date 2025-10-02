@@ -84,13 +84,35 @@ function get_comment(id: string): Promise<string | null> {
 }
 
 
-async function create(comment:string) {
+async function create_comment(comment:string) {
 	creating = false;
 	decl_started = false;
 	decl_position = null;
 	comlink!.stdin.write(`~${comment}\n`, "utf-8");
     return new Promise(resolve => {
         pendingResolve = resolve;
+    });
+}
+
+
+async function delete_comment() {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) { return; }
+
+    const currentLine = editor.selection.active.line;
+    const lineText = editor.document.lineAt(currentLine).text;
+
+    const id = lineText.split(":")[1]?.trim();
+    if (!id) {
+        vscode.window.showWarningMessage("No ID found on this line.");
+        return;
+    }
+
+    comlink!.stdin.write(`&${id}\n`, "utf-8");
+
+    editor.edit(editBuilder => {
+        const lineRange = editor.document.lineAt(currentLine).range;
+        editBuilder.replace(lineRange, '');
     });
 }
 
@@ -138,7 +160,7 @@ async function check_character(event:vscode.TextDocumentChangeEvent,
 			const commentText = event.document.getText(commentRange).slice(2, -1);
 			
 			log(`creation text: ${commentText}`);
-			const replacement = await create(commentText);
+			const replacement = await create_comment(commentText);
 
 			const fullReplacement =
 				language_id === 'html' ? "" + replacement + '-->'
@@ -189,6 +211,9 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const init_command = vscode.commands.registerCommand('comlink.init', init_project_comlink);
 	context.subscriptions.push(init_command);
+
+	const del_command = vscode.commands.registerCommand('comlink.del', delete_comment);
+	context.subscriptions.push(del_command);
 
 	if (!comlink_dir_path){ log("comlink cannot be found"); return;}
 	if (!workspace_uri){ log("comlink cannot be found"); return;}

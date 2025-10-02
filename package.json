@@ -18,6 +18,10 @@
       {
         "command": "comlink.init",
         "title": "Initialize comlink directory"
+      },
+      {
+        "command": "comlink.del",
+        "title": "Delete comlink comment on current line."
       }
     ]
   },

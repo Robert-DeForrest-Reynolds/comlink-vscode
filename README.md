@@ -11,8 +11,10 @@ I made comlink to try to solve that problem, and well, just because I wanted to.
 ## comlink <-> editor communication
 If you want to create an extension for comlink, or even implement into your text editor, I'll explain how here:<br>
 Comlink when running is constantly waiting for input. You tell it what to do by prefixing the data you send it, and it will reply with data with the same prefix.<br>
-To send a comment to create, you send `~some comment` to comlink, and the next reply from comlink will be an id for that comment for you to replace the comment text in the editor with. <br>
-Deleting, and editing a comment is best done through commands if your text editor supports them. The command should
+To tell comlink to load a project's database, you can send `*`.
+To send a comment to create, you send the comment prefixed with `~` to comlink, for example: `~some comment`, and the next reply from comlink will be the unique ID for that comment for you to replace the comment text in the editor with. <br>
+To get a comment from the database, you send send the ID prefixed with `@` when hovering, for example: `@a2` and the next reply from comlink will be the comment.<br>
+To use a comlink command like `init`, you prefix the command with `>`, so you'd send `>init`.<br>
 
 
 **the editor is responsible for telling comlink:**
