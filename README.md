@@ -90,6 +90,9 @@ Please follow standard GitHub workflow:
 
 ---
 
+## Support
+[Discord Server](https://discord.gg/ZZMCdRgY) or create an issues in the above repository.
+
 ## License
 
 MIT License © Robert DeForrest-Reynolds
