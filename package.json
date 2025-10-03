@@ -5,6 +5,7 @@
   "description": "Debloat your code from comments with external comment linking",
   "version": "0.0.3",
   "repository": "https://github.com/Robert-DeForrest-Reynolds/comlink-vscode",
+  "icon": "ComlinkIcon.png",
   "engines": {
     "vscode": "^1.104.0"
   },
