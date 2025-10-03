@@ -1,97 +1,54 @@
 import * as vscode from 'vscode';
-import { ChildProcessWithoutNullStreams, spawn } from "child_process";
-import * as readline from "readline";
-
-const output = vscode.window.createOutputChannel('comlink');
-output.show();
-
-const comment_map: Record<string, string> = {
-    javascript: '//',
-    typescript: '//',
-    python: '#',
-    cpp: '//',
-    c: '//',
-    java: '//',
-    ruby: '#',
-    go: '//',
-    lua: '--',
-    html: '<!--',
-    css: '/*',
-    php: '//',
-};
-
-const repoUrl = "https://github.com/Robert-DeForrest-Reynolds/comlink.git";
-
-let is_initalized = false;
-let comlink:ChildProcessWithoutNullStreams|null = null;
-let comlink_dir_path: string | null = null;
-let workspace_uri: vscode.Uri | null = null;
-let comlink_project_dir_path: vscode.Uri | null = null;
-let decl_started = false;
-let decl_position:vscode.Position|null;
-let creating = false;
+import { spawn } from "child_process";
+import * as comlink_interface from './comlink_interface';
+import { globals as g } from './globals';
 
 
-let rl:readline.Interface|null = null;
-let pendingResolve: ((val: string | null) => void) | null = null;
+
+
+function get_current_workspace_folders(){
+    const folders = vscode.workspace.workspaceFolders;
+    g.workspace_folders = folders ? [...folders] : [];
+}
 
 
 function log(msg:string, pop:boolean=false){
-	output.appendLine(msg);
+	g.output.appendLine(msg);
 	if (pop){ vscode.window.showInformationMessage(msg); }
 }
 
 
 function error(msg:string, pop:boolean=false){
-	output.appendLine(msg);
+	g.output.appendLine(msg);
 	if (pop){ vscode.window.showErrorMessage(msg); }
 }
 
 
 async function init_project_comlink() {
-	if (is_initalized) {
+	if (g.is_initalized) {
 		error("comlink is already initialized", true);
 		return;
-	} else { is_initalized = true; }
+	} else { g.is_initalized = true; }
 
-	comlink_project_dir_path = vscode.Uri.joinPath(workspace_uri!, 'comlink');
-    comlink!.stdin.write(`>init\n`, "utf-8");
+	g.comlink_project_dir_path = vscode.Uri.joinPath(g.workspace_uri!, 'comlink');
+    g.comlink!.stdin.write(`>init\n`, "utf-8");
 
 	try {
 		try {
-			const stat = await vscode.workspace.fs.stat(comlink_project_dir_path);
+			const stat = await vscode.workspace.fs.stat(g.comlink_project_dir_path);
 			if (stat.type === vscode.FileType.Directory) {
 				error('comlink directory already exists.', true);
 			} else {
 				error('A file exists with the same name as comlink directory.', true);
 			}
 		} catch {
-			await vscode.workspace.fs.createDirectory(comlink_project_dir_path);
-			comlink!.stdin.write('*\n', 'utf-8');
-			log(`Directory ready:\n${comlink_project_dir_path.fsPath}`, true);
+			await vscode.workspace.fs.createDirectory(g.comlink_project_dir_path);
+			g.comlink!.stdin.write('*\n', 'utf-8');
+			log(`Directory ready:\n${g.comlink_project_dir_path.fsPath}`, true);
 		}
 	} catch (err) {
 		error("Failed to create comlink directory for some reason.", true);
 	}
-}
-
-
-function get_comment(id: string): Promise<string | null> {
-    comlink!.stdin.write(`@${id}\n`, "utf-8");
-    return new Promise(resolve => {
-        pendingResolve = resolve;
-    });
-}
-
-
-async function create_comment(comment:string) {
-	creating = false;
-	decl_started = false;
-	decl_position = null;
-	comlink!.stdin.write(`~${comment}\n`, "utf-8");
-    return new Promise(resolve => {
-        pendingResolve = resolve;
-    });
 }
 
 
@@ -108,7 +65,7 @@ async function delete_comment() {
         return;
     }
 
-    comlink!.stdin.write(`&${id}\n`, "utf-8");
+    g.comlink!.stdin.write(`&${id}\n`, "utf-8");
 
     editor.edit(editBuilder => {
         const lineRange = editor.document.lineAt(currentLine).range;
@@ -136,31 +93,26 @@ async function check_character(event:vscode.TextDocumentChangeEvent,
 							   editor:vscode.TextEditor, language_id:string){
 	if (change.text === '' && change.rangeLength > 0) {
 		const deletedText = event.document.getText(change.range);
-		if (deletedText.includes('~')) {
-			creating = false;
-			decl_started = false;
-		}
-		else if (deletedText.includes('*')) {
-			creating = false;
-			decl_started = false;
+		if (deletedText.includes('~')) { g.creating = false; g.decl_started = false; }
+		else if (deletedText.includes('*')) { g.creating = false;g.decl_started = false;
 		}
 	}
 	else if (change.text.length > 0) {
 		const last_char = change.text[change.text.length - 1];
-		if (last_char === '*' && decl_started){
-			creating = true;
+		if (last_char === '*' && g.decl_started){ g.creating = true; }
+		else if (last_char === '~' && !g.decl_started){
+			g.decl_started = true;
+			g.decl_position = new vscode.Position(change.range.start.line, change.range.start.character);
 		}
-		else if (last_char === '~' && !decl_started){
-			decl_started = true;
-			decl_position = new vscode.Position(change.range.start.line, change.range.start.character);
-		}
-		else if (last_char === '~' && creating) {
-			const commentRange = new vscode.Range(decl_position!, new vscode.Position(change.range.end.line, change.range.end.character+1));
+		else if (last_char === '~' && g.creating) {
+			const commentRange = new vscode.Range(g.decl_position!,
+												  new vscode.Position(change.range.end.line,
+																	  change.range.end.character+1));
 
 			const commentText = event.document.getText(commentRange).slice(2, -1);
 			
 			log(`creation text: ${commentText}`);
-			const replacement = await create_comment(commentText);
+			const replacement = await comlink_interface.create_comment(commentText);
 
 			const fullReplacement =
 				language_id === 'html' ? "" + replacement + '-->'
@@ -171,82 +123,84 @@ async function check_character(event:vscode.TextDocumentChangeEvent,
 				editBuilder.replace(commentRange, fullReplacement);
 			});
 		}
-		else if (last_char === '~' && !creating && decl_started){
-			decl_started = false;
-		}
+		else if (last_char === '~' && !g.creating && g.decl_started){ g.decl_started = false; }
 	}
 }
 
 
 function parse_comlink_data(data: Buffer) {
     const msg = data.toString().trim();
-    if (pendingResolve) {
+    if (g.pendingResolve) {
 		if (msg.startsWith('~')){
-			pendingResolve(`id:${msg.slice(1)}`);
-			pendingResolve = null;
+			g.pendingResolve(`id:${msg.slice(1)}`);
+			g.pendingResolve = null;
 		} else {
-			pendingResolve(msg);
-			pendingResolve = null;
+			g.pendingResolve(msg);
+			g.pendingResolve = null;
 		}
-    	output.appendLine(msg);
+    	g.output.appendLine(msg);
     }
 }
 
 
-export function activate(context: vscode.ExtensionContext) {
-	const workspace_folders = vscode.workspace.workspaceFolders;
+function verify_workspace(){
+	get_current_workspace_folders();
 
-	if (!workspace_folders || workspace_folders.length === 0){
+	if (!g.workspace_folders || g.workspace_folders.length === 0){
 		error("No workspace is open.", true);
 		return;
 	}
 	
-	if (workspace_folders.length === 2){
+	if (g.workspace_folders.length === 2){
 		error("Detected 2 workspaces open, will only init for the first workspace detected.", true);
 	}
+}
 
-	workspace_uri = workspace_folders[0].uri;
-	
-	comlink_dir_path = vscode.Uri.joinPath(context.extensionUri, 'comlink', '__main__.py').fsPath;
 
-	const init_command = vscode.commands.registerCommand('comlink.init', init_project_comlink);
-	context.subscriptions.push(init_command);
-
-	const del_command = vscode.commands.registerCommand('comlink.del', delete_comment);
-	context.subscriptions.push(del_command);
-
-	if (!comlink_dir_path){ log("comlink cannot be found"); return;}
-	if (!workspace_uri){ log("comlink cannot be found"); return;}
-
-	log("Starting comlink process...");
-	comlink = spawn("python", ['-B', comlink_dir_path, workspace_uri.fsPath]);
-	if (!comlink){ log("comlink cannot be found"); return; }
-
-	comlink.stdout.on("data", parse_comlink_data);
-
-	comlink.stderr.on("data", (data: Buffer) => {
-		output.appendLine("DEBUG: " + data.toString().trim());
-	});
-
-	vscode.workspace.onDidChangeTextDocument(event => process_document_change_event(event));
-
-    const provider = vscode.languages.registerHoverProvider(
+function register_hover(){
+    const hover_provider = vscode.languages.registerHoverProvider(
         { scheme: "file", language: "*" },
         {
             async provideHover(document, position) {
-				let language_id = document.languageId;
-                let text = document.lineAt(position.line).text;
-				let id = text.split(`${comment_map[language_id]}ID:`)[1];
+				let id = document.lineAt(position.line).text
+						 .split(`${g.comment_map[document.languageId]}ID:`)[1]?.trim();
 				if (!id) { return; }
-                const comment = await get_comment(id);
-                if (comment) {
-                    return new vscode.Hover(comment);
-                }
+                const comment:string|null = await comlink_interface.get_comment(id);
+                if (comment) { return new vscode.Hover(comment); }
 
                 return undefined;
             }
         }
     );
+	return hover_provider;
+}
 
-    context.subscriptions.push(provider);
+
+export function activate(context: vscode.ExtensionContext) {
+	g.output.show();
+	verify_workspace();
+	g.workspace_uri = g.workspace_folders![0].uri;
+	
+	g.comlink_path = vscode.Uri.joinPath(context.extensionUri, 'comlink', '__main__.py').fsPath;
+
+	context.subscriptions.push(vscode.commands.registerCommand('comlink.init', init_project_comlink));
+
+	context.subscriptions.push(vscode.commands.registerCommand('comlink.del', delete_comment));
+
+	if (!g.comlink_path){ log("comlink-vscode's comlink directory cannot be found"); return;}
+	if (!g.workspace_uri){ log("workspace uri cannot be worked out"); return;}
+
+	log("Starting comlink process...");
+	g.comlink = spawn("python", ['-B', g.comlink_path, g.workspace_uri.fsPath]);
+	if (!g.comlink){ log("comlink cannot be found"); return; }
+
+	g.comlink.stdout.on("data", parse_comlink_data);
+
+	g.comlink.stderr.on("data", (data: Buffer) => {
+		g.output.appendLine("DEBUG: " + data.toString().trim());
+	});
+
+	vscode.workspace.onDidChangeTextDocument(event => process_document_change_event(event));
+
+    context.subscriptions.push(register_hover());
 }
